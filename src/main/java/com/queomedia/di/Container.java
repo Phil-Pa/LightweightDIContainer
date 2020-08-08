@@ -16,7 +16,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.util.*;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.reflections.ReflectionUtils.withAnnotation;
@@ -152,17 +151,17 @@ public class Container {
         ConfigurationBuilder configurationBuilder = new ConfigurationBuilder()
                 .setUrls(ClasspathHelper.forPackage(packageName))
                 .setScanners(new TypeAnnotationsScanner(), new SubTypesScanner())
-                .filterInputsBy(this::myFilter);
+                .filterInputsBy(this::filterClassesToExclude);
 
         return new Reflections(
                 configurationBuilder
         );
     }
 
-    private boolean myFilter(String classpath) {
-        boolean actualValue = !classpathContainsAnyClassToExclude(classpath, classesToExcludeFromScanning);
-        System.out.println("exclude " + classpath + " = " + actualValue);
-        return actualValue;
+    private boolean filterClassesToExclude(String classpath) {
+        boolean classShouldBeScanned = !classpathContainsAnyClassToExclude(classpath, classesToExcludeFromScanning);
+        System.out.println("scanning " + classpath + " = " + classShouldBeScanned);
+        return classShouldBeScanned;
     }
 
     private static boolean classpathContainsAnyClassToExclude(String classpath, Set<String> classesToExcludeFromScanning) {
