@@ -1,10 +1,10 @@
-package com.queomedia.di;
+package com.queomedia.di.demoinjection;
 
 import com.queomedia.di.annotations.Bean;
 import com.queomedia.di.annotations.Inject;
 import com.queomedia.di.annotations.Named;
 
-@Bean(name = "myBean")
+@Bean
 public class InjectionTargetNamed {
 
     @Inject
@@ -14,5 +14,9 @@ public class InjectionTargetNamed {
     @Inject
     @Named(name = "b")
     public Integer valueB;
+
+    private InjectionTargetNamed() {
+
+    }
 
 }

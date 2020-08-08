@@ -1,5 +1,8 @@
 package com.queomedia.di;
 
+import com.queomedia.di.demobeans.AbstractDemo;
+import com.queomedia.di.demobeans.Demo;
+import com.queomedia.di.demoinjection.InjectionTargetNamed;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -15,8 +18,7 @@ public class ContainerTest {
     public void testBasicUseCase() {
         Container container = new Container();
 
-        String currentPackage = getClass().getPackageName();
-        container.addPackage(currentPackage);
+        container.addPackage("com.queomedia.di");
 
         Integer beanA = 1;
         Integer beanB = 2;
@@ -35,8 +37,7 @@ public class ContainerTest {
     public void testGetSameBeanFromContainer() {
         Container container = new Container();
 
-        String currentPackage = getClass().getPackageName();
-        container.addPackage(currentPackage);
+        container.addPackage("com.queomedia.di.demoinjection");
 
         Integer beanA = 1;
         Integer beanB = 2;
@@ -92,7 +93,7 @@ public class ContainerTest {
         try {
             InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
             fail("class InjectionTargetNamed is not in package com.example and the container should not have added this class for scanning");
-        } catch (IllegalArgumentException e) { // TODO: class not scanned exception?
+        } catch (IllegalArgumentException e) {
 
         }
     }
@@ -101,13 +102,36 @@ public class ContainerTest {
     public void testThrowIfTypeToCreateIsNotBean() {
         Container container = new Container();
         Integer bean = 0;
-        container.addPackage("com.queomedia.di");
+        container.addPackage("com.queomedia.di.demoinjection");
         container.addBean("a", bean);
         container.scan();
 
         try {
             Container newContainer = (Container) container.getBeanByType(Container.class);
             fail(Container.class.getName() + " is not annotated with Bean and can not be created by the container");
+        } catch (IllegalArgumentException e) {
+
+        }
+    }
+
+    @Test
+    public void testThrowIfBeanNameCanNotBeInstantiated() {
+        Container container = new Container();
+        Integer bean = 0;
+        container.addPackage("com.queomedia.di.demobeans");
+        container.addBean("a", bean);
+        container.scan();
+
+        try {
+            Demo demo = (Demo) container.getBeanByType(Demo.class);
+            fail("demo can not be instantiated and an exception must be thrown");
+        } catch (IllegalArgumentException e) {
+
+        }
+
+        try {
+            AbstractDemo demo = (AbstractDemo) container.getBeanByType(AbstractDemo.class);
+            fail("demo can not be instantiated and an exception must be thrown");
         } catch (IllegalArgumentException e) {
 
         }

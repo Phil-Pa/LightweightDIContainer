@@ -5,14 +5,23 @@ import com.queomedia.di.annotations.Inject;
 import com.queomedia.di.annotations.Named;
 import org.reflections.ReflectionUtils;
 import org.reflections.Reflections;
-import static org.reflections.ReflectionUtils.*;
+import org.reflections.ReflectionsException;
+import org.reflections.scanners.SubTypesScanner;
+import org.reflections.scanners.TypeAnnotationsScanner;
+import org.reflections.util.ClasspathHelper;
+import org.reflections.util.ConfigurationBuilder;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.util.*;
-import java.util.function.Predicate;
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import static org.reflections.ReflectionUtils.withAnnotation;
+import static org.reflections.ReflectionUtils.withParametersCount;
 
 public class Container {
 
@@ -33,25 +42,58 @@ public class Container {
 
     public void scan() {
 
+        final Set<Class<?>> beanTypes = new HashSet<>();
 
+        for (String packageName : packageNames) {
+            Set<Class<?>> tempBeanTypes = getAllBeanTypesByPackageName(packageName);
+            beanTypes.addAll(tempBeanTypes);
+        }
 
+        for (Class<?> beanType : beanTypes) {
+            if (!typeCanBeInstantiated(beanType))
+                continue;
+
+            Object newSingleton = createSingletonObjectOfType(beanType);
+
+            if (newSingleton == null)
+                continue;
+
+            injectInjectablesIntoSingleton(newSingleton);
+            String beanName = getBeanNameOfType(beanType);
+            addSingletonToMap(beanName, newSingleton);
+        }
+    }
+
+    private Set<Class<?>> getAllBeanTypesByPackageName(String packageName) {
+        try {
+            Reflections reflections = new Reflections(packageName);
+            return reflections.getTypesAnnotatedWith(Bean.class);
+        } catch (ReflectionsException e) {
+            return new HashSet<>();
+        }
     }
 
     public Object getBeanByType(Class<?> type) {
 
+        checkIfTypeCanBeInstantiated(type);
         checkIfTypeIsBean(type);
         checkIfTypeIsAddedAndScanned(type);
 
         String beanName = getBeanNameOfType(type);
+        return beanNameToSingletonMap.get(beanName);
 
-        if (alreadyCreatedSingletonOfType(type)) {
-            return beanNameToSingletonMap.get(beanName);
-        } else {
-            Object newSingleton = createSingletonObjectOfType(type);
-            injectInjectablesIntoSingleton(newSingleton);
-            addSingletonToMap(beanName, newSingleton);
-            return newSingleton;
-        }
+
+    }
+
+    private void checkIfTypeCanBeInstantiated(Class<?> type) {
+        if (!typeCanBeInstantiated(type))
+            throw new IllegalArgumentException("type " + type.getName() + " can not be instantiated");
+    }
+
+    private boolean typeCanBeInstantiated(Class<?> type) {
+        if (type.isInterface() || Modifier.isAbstract(type.getModifiers()))
+            return false;
+        return true;
     }
 
     private void checkIfTypeIsBean(Class<?> type) {
@@ -73,7 +115,11 @@ public class Container {
 
     private boolean typeIsInScannedPackages(Class<?> type) {
         String packageOfType = type.getPackageName();
-        return packageNames.contains(packageOfType);
+        for (String packageName : packageNames) {
+            if (!packageOfType.startsWith(packageName))
+                return false;
+        }
+        return true;
     }
 
     private void addSingletonToMap(String beanName, Object newSingleton) {
@@ -104,9 +150,9 @@ public class Container {
     private Object createSingletonObjectOfType(Class<?> type) {
         Constructor<?> constructor = getDefaultConstructorOfType(type);
         try {
+            constructor.setAccessible(true);
             return constructor.newInstance();
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            e.printStackTrace();
             return null;
         }
     }
