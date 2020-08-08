@@ -15,10 +15,9 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.reflections.ReflectionUtils.withAnnotation;
 import static org.reflections.ReflectionUtils.withParametersCount;
@@ -28,9 +27,19 @@ public class Container {
     private final Set<String> packageNames = new HashSet<>();
     private final Map<String, Object> injectableNameToInjectableObjectMap = new HashMap<>();
     private final Map<String, Object> beanNameToSingletonMap = new HashMap<>();
+    private final Set<String> classesToExcludeFromScanning = new HashSet<>();
 
     public void addPackage(String packageName) {
         packageNames.add(packageName);
+    }
+
+    public void excludeClassesFromScanning(Class<?> ...classesToExclude) {
+        List<Class<?>> classList = Arrays.asList(classesToExclude);
+        Set<String> classNames = classList
+                .stream()
+                .map(Class::getSimpleName)
+                .collect(Collectors.toSet());
+        classesToExcludeFromScanning.addAll(classNames);
     }
 
     public void addBean(String beanName, Object bean) {
@@ -42,35 +51,33 @@ public class Container {
 
     public void scan() {
 
-        final Set<Class<?>> beanTypes = new HashSet<>();
-
-        for (String packageName : packageNames) {
-            Set<Class<?>> tempBeanTypes = getAllBeanTypesByPackageName(packageName);
-            beanTypes.addAll(tempBeanTypes);
-        }
+        Set<Class<?>> beanTypes = findBeanTypes();
 
         for (Class<?> beanType : beanTypes) {
-            if (!typeCanBeInstantiated(beanType))
+            if (typeCanNotBeInstantiated(beanType))
                 continue;
+
+            Set<Field> injectableFields = getInjectableFields(beanType);
+
+            if (typeHasEquallyNamedInjectableFields(injectableFields))
+                throw new IllegalStateException("bean must not have 2 equally named injectable fields");
 
             Object newSingleton = createSingletonObjectOfType(beanType);
 
-            if (newSingleton == null)
-                continue;
-
-            injectInjectablesIntoSingleton(newSingleton);
+            injectInjectablesIntoSingleton(injectableFields, newSingleton);
             String beanName = getBeanNameOfType(beanType);
             addSingletonToMap(beanName, newSingleton);
         }
     }
 
-    private Set<Class<?>> getAllBeanTypesByPackageName(String packageName) {
-        try {
-            Reflections reflections = new Reflections(packageName);
-            return reflections.getTypesAnnotatedWith(Bean.class);
-        } catch (ReflectionsException e) {
-            return new HashSet<>();
+    private Set<Class<?>> findBeanTypes() {
+        Set<Class<?>> beanTypes = new HashSet<>();
+
+        for (String packageName : packageNames) {
+            Set<Class<?>> tempBeanTypes = getAllBeanTypesByPackageName(packageName);
+            beanTypes.addAll(tempBeanTypes);
         }
+        return beanTypes;
     }
 
     public Object getBeanByType(Class<?> type) {
@@ -81,28 +88,6 @@ public class Container {
 
         String beanName = getBeanNameOfType(type);
         return beanNameToSingletonMap.get(beanName);
-
-
-    }
-
-    private void checkIfTypeCanBeInstantiated(Class<?> type) {
-        if (!typeCanBeInstantiated(type))
-            throw new IllegalArgumentException("type " + type.getName() + " can not be instantiated");
-    }
-
-    private boolean typeCanBeInstantiated(Class<?> type) {
-        if (type.isInterface() || Modifier.isAbstract(type.getModifiers()))
-            return false;
-        return true;
-    }
-
-    private void checkIfTypeIsBean(Class<?> type) {
-        if (!typeIsBean(type))
-            throw new IllegalArgumentException("type " + type.getName() + " is not annotated with Bean");
-    }
-
-    private boolean typeIsBean(Class<?> type) {
-        return type.isAnnotationPresent(Bean.class);
     }
 
     private void checkIfTypeIsAddedAndScanned(Class<?> type) {
@@ -126,12 +111,12 @@ public class Container {
         beanNameToSingletonMap.put(beanName, newSingleton);
     }
 
-    private void injectInjectablesIntoSingleton(Object newSingleton) {
-        Set<Field> injectableFields = getInjectableFields(newSingleton);
+    private void injectInjectablesIntoSingleton(Set<Field> injectableFields, Object newSingleton) {
         for (Field field : injectableFields) {
-            String injectableName = getInjectableNameOfField(field);
+            String injectableName = getFieldName(field);
             Object valueToInject = injectableNameToInjectableObjectMap.get(injectableName);
             try {
+                field.setAccessible(true);
                 field.set(newSingleton, valueToInject);
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
@@ -139,15 +124,76 @@ public class Container {
         }
     }
 
-    private String getInjectableNameOfField(Field field) {
-        return field.getAnnotation(Named.class).name();
+    private static boolean typeHasEquallyNamedInjectableFields(Set<Field> injectableFields) {
+        List<String> fieldNames = injectableFields.stream().map(Container::getFieldName)
+                .collect(Collectors.toList());
+
+        return CollectionUtils.containsDuplicates(fieldNames);
     }
 
-    private Set<Field> getInjectableFields(Object newSingleton) {
-        return ReflectionUtils.getAllFields(newSingleton.getClass(), withAnnotation(Inject.class));
+    private static String getFieldName(Field field) {
+        Named named = field.getAnnotation(Named.class);
+        if (named != null)
+            return named.name();
+        return field.getName();
     }
 
-    private Object createSingletonObjectOfType(Class<?> type) {
+    private Set<Class<?>> getAllBeanTypesByPackageName(String packageName) {
+        try {
+            Reflections reflections = configureClasspathScanner(packageName);
+            return reflections.getTypesAnnotatedWith(Bean.class);
+        } catch (ReflectionsException e) {
+            return new HashSet<>();
+        }
+    }
+
+    private Reflections configureClasspathScanner(String packageName) {
+
+        ConfigurationBuilder configurationBuilder = new ConfigurationBuilder()
+                .setUrls(ClasspathHelper.forPackage(packageName))
+                .setScanners(new TypeAnnotationsScanner(), new SubTypesScanner())
+                .filterInputsBy(this::myFilter);
+
+        return new Reflections(
+                configurationBuilder
+        );
+    }
+
+    private boolean myFilter(String classpath) {
+        boolean actualValue = !classpathContainsAnyClassToExclude(classpath, classesToExcludeFromScanning);
+        System.out.println("exclude " + classpath + " = " + actualValue);
+        return actualValue;
+    }
+
+    private static boolean classpathContainsAnyClassToExclude(String classpath, Set<String> classesToExcludeFromScanning) {
+        for (String className : classesToExcludeFromScanning) {
+            if (classpath.contains(className))
+                return true;
+        }
+        return false;
+    }
+
+    private static void checkIfTypeCanBeInstantiated(Class<?> type) {
+        if (typeCanNotBeInstantiated(type))
+            throw new IllegalArgumentException("type " + type.getName() + " can not be instantiated");
+    }
+
+    private static boolean typeCanNotBeInstantiated(Class<?> type) {
+        if (type.isInterface() || Modifier.isAbstract(type.getModifiers()))
+            return true;
+        return false;
+    }
+
+    private static void checkIfTypeIsBean(Class<?> type) {
+        if (!typeIsBean(type))
+            throw new IllegalArgumentException("type " + type.getName() + " is not annotated with Bean");
+    }
+
+    private static Set<Field> getInjectableFields(Class<?> type) {
+        return ReflectionUtils.getAllFields(type, withAnnotation(Inject.class));
+    }
+
+    private static Object createSingletonObjectOfType(Class<?> type) {
         Constructor<?> constructor = getDefaultConstructorOfType(type);
         try {
             constructor.setAccessible(true);
@@ -157,16 +203,15 @@ public class Container {
         }
     }
 
-    private Constructor<?> getDefaultConstructorOfType(Class<?> type) {
+    private static boolean typeIsBean(Class<?> type) {
+        return type.isAnnotationPresent(Bean.class);
+    }
+
+    private static Constructor<?> getDefaultConstructorOfType(Class<?> type) {
         return ReflectionUtils.getConstructors(type, withParametersCount(0)).stream().findFirst().orElseThrow();
     }
 
-    private boolean alreadyCreatedSingletonOfType(Class<?> type) {
-        String beanName = getBeanNameOfType(type);
-        return beanNameToSingletonMap.containsKey(beanName);
-    }
-
-    private String getBeanNameOfType(Class<?> type) {
+    private static String getBeanNameOfType(Class<?> type) {
         return type.getName();
     }
 }

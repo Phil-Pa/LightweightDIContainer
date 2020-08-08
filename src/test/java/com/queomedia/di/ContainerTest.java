@@ -2,7 +2,9 @@ package com.queomedia.di;
 
 import com.queomedia.di.demobeans.AbstractDemo;
 import com.queomedia.di.demobeans.Demo;
+import com.queomedia.di.demobeans.DemoImpl2;
 import com.queomedia.di.demoinjection.InjectionTargetNamed;
+import com.queomedia.di.invalidbeans.DemoImpl1;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -18,7 +20,8 @@ public class ContainerTest {
     public void testBasicUseCase() {
         Container container = new Container();
 
-        container.addPackage("com.queomedia.di");
+        container.addPackage("com.queomedia.di.demoinjection");
+        container.excludeClassesFromScanning(DemoImpl1.class);
 
         Integer beanA = 1;
         Integer beanB = 2;
@@ -38,6 +41,7 @@ public class ContainerTest {
         Container container = new Container();
 
         container.addPackage("com.queomedia.di.demoinjection");
+        container.excludeClassesFromScanning(DemoImpl1.class);
 
         Integer beanA = 1;
         Integer beanB = 2;
@@ -103,6 +107,7 @@ public class ContainerTest {
         Container container = new Container();
         Integer bean = 0;
         container.addPackage("com.queomedia.di.demoinjection");
+        container.excludeClassesFromScanning(DemoImpl1.class);
         container.addBean("a", bean);
         container.scan();
 
@@ -119,6 +124,7 @@ public class ContainerTest {
         Container container = new Container();
         Integer bean = 0;
         container.addPackage("com.queomedia.di.demobeans");
+        container.excludeClassesFromScanning(DemoImpl1.class);
         container.addBean("a", bean);
         container.scan();
 
@@ -133,6 +139,22 @@ public class ContainerTest {
             AbstractDemo demo = (AbstractDemo) container.getBeanByType(AbstractDemo.class);
             fail("demo can not be instantiated and an exception must be thrown");
         } catch (IllegalArgumentException e) {
+
+        }
+    }
+
+    @Test
+    public void testThrowIfInjectableFieldsHaveSameName() {
+        Container container = new Container();
+        Integer bean = 0;
+        container.addPackage("com.queomedia.di.invalidbeans");
+        container.addBean("a", bean);
+
+        try {
+            container.scan();
+            // DemoImpl1 demoImpl = (DemoImpl1) container.getBeanByType(DemoImpl1.class);
+            fail("DemoImpl1 has 2 equally named fields to inject");
+        } catch (IllegalStateException e) {
 
         }
     }
