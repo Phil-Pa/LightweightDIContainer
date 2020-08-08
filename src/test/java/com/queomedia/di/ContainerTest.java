@@ -6,6 +6,7 @@ import com.queomedia.di.demobeans.DemoImpl2;
 import com.queomedia.di.demoinjection.InjectionTargetNamed;
 import com.queomedia.di.invalidbeans.DemoImpl1;
 import com.queomedia.di.invalidbeans.DemoImpl3;
+import com.queomedia.di.invalidbeans.DemoImpl4;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -29,8 +30,8 @@ public class ContainerTest {
         container.scan();
 
         InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
-        assertEquals(beanA, injectionTargetNamed.valueA);
-        assertEquals(beanB, injectionTargetNamed.valueB);
+        assertEquals(beanA, injectionTargetNamed.getValueA());
+        assertEquals(beanB, injectionTargetNamed.getValueB());
     }
 
     @Test
@@ -191,6 +192,53 @@ public class ContainerTest {
 
         }
 
+    }
+
+    @Test
+    public void testAddInstantiatedBean() {
+        Container container = new Container();
+
+        Integer beanA = 3;
+        Integer beanB = 5;
+        InjectionTargetNamed injectionTargetNamed = new InjectionTargetNamed();
+
+        container.addInjectable(injectionTargetNamed);
+
+        container.addBean("a", beanA);
+        container.addBean("b", beanB);
+
+        container.scan();
+
+        InjectionTargetNamed injectionTargetNamedInjected = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+
+        assertEquals(injectionTargetNamed, injectionTargetNamedInjected);
+        assertEquals(beanA, injectionTargetNamed.getValueA());
+        assertEquals(beanB, injectionTargetNamed.getValueB());
+    }
+
+    @Test
+    public void testManuallyInstantiatedBeanIsNotScannedAgainWhenScanning() {
+        Container container = new Container();
+
+        Integer beanA = 3;
+        Integer beanB = 5;
+        Integer valueC = 9;
+        InjectionTargetNamed injectionTargetNamed = new InjectionTargetNamed();
+        injectionTargetNamed.setValueC(valueC);
+
+        container.addPackage("com.queomedia.di");
+        container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl2.class, DemoImpl3.class, DemoImpl4.class);
+        container.addInjectable(injectionTargetNamed);
+
+        container.addBean("a", beanA);
+        container.addBean("b", beanB);
+
+        container.scan();
+
+        InjectionTargetNamed injectionTargetNamedInjected = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+
+        assertEquals(injectionTargetNamed, injectionTargetNamedInjected);
+        assertEquals(valueC, injectionTargetNamedInjected.getValueC());
     }
 
 }

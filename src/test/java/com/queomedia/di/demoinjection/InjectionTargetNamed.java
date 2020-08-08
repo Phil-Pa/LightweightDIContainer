@@ -9,14 +9,31 @@ public class InjectionTargetNamed {
 
     @Inject
     @Named(name = "a")
-    public Integer valueA;
+    private Integer valueA;
 
     @Inject
     @Named(name = "b")
-    public Integer valueB;
+    private Integer valueB;
 
-    private InjectionTargetNamed() {
+    private Integer valueC;
+
+    public InjectionTargetNamed() {
 
     }
 
+    public void setValueC(Integer value) {
+        valueC = value;
+    }
+
+    public Integer getValueA() {
+        return valueA;
+    }
+
+    public Integer getValueB() {
+        return valueB;
+    }
+
+    public Integer getValueC() {
+        return valueC;
+    }
 }

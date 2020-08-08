@@ -23,10 +23,39 @@ import static org.reflections.ReflectionUtils.withParametersCount;
 
 public class Container {
 
+    private interface SingletonProviderStrategy {
+        Object provideSingleton(Class<?> type);
+    }
+
+    private static class SingletonProviderCreateNewSingletonStrategy implements SingletonProviderStrategy {
+
+        @Override
+        public Object provideSingleton(Class<?> type) {
+            return Container.createSingletonObjectOfType(type);
+        }
+    }
+
+    private static class SingletonProviderUseManuallyInstantiatedBeanStrategy implements SingletonProviderStrategy {
+
+        private final Object manuallyInstantiatedBean;
+
+        public SingletonProviderUseManuallyInstantiatedBeanStrategy(Object manuallyInstantiatedBean) {
+            this.manuallyInstantiatedBean = manuallyInstantiatedBean;
+        }
+
+        @Override
+        public Object provideSingleton(Class<?> type) {
+            return manuallyInstantiatedBean;
+        }
+    }
+
+    private static final SingletonProviderStrategy CREATE_NEW_SINGLETON_STRATEGY = new SingletonProviderCreateNewSingletonStrategy();
+
     private final Set<String> packageNames = new HashSet<>();
     private final Map<String, Object> injectableNameToInjectableObjectMap = new HashMap<>();
     private final Map<String, Object> beanNameToSingletonMap = new HashMap<>();
     private final Set<String> classesToExcludeFromScanning = new HashSet<>();
+    private final Set<Object> manuallyInstantiatedBeans = new HashSet<>();
 
     public void addPackage(String packageName) {
         packageNames.add(packageName);
@@ -49,25 +78,46 @@ public class Container {
     }
 
     public void scan() {
-
         Set<Class<?>> beanTypes = findBeanTypes();
-
         checkForSameBeanNames(beanTypes);
 
         for (Class<?> beanType : beanTypes) {
             if (typeCanNotBeInstantiated(beanType))
                 continue;
 
-            Set<Field> injectableFields = getInjectableFields(beanType);
+            if (!typeIsManuallyAdded(beanType))
+                injectFieldsIntoBean(beanType, CREATE_NEW_SINGLETON_STRATEGY);
+        }
 
-            if (typeHasEquallyNamedInjectableFields(injectableFields))
-                throw new IllegalStateException("bean must not have 2 equally named injectable fields");
+        injectManuallyAddedSingletons();
+    }
 
-            Object newSingleton = createSingletonObjectOfType(beanType);
+    private boolean typeIsManuallyAdded(Class<?> type) {
+        for (Object object : manuallyInstantiatedBeans) {
+            Class<?> objectType = object.getClass();
+            if (type.getName().equals(objectType.getName()))
+                return true;
+        }
+        return false;
+    }
 
-            injectInjectablesIntoSingleton(injectableFields, newSingleton);
-            String beanName = getBeanNameOfType(beanType);
-            addSingletonToMap(beanName, newSingleton);
+    private void injectFieldsIntoBean(Class<?> beanType, SingletonProviderStrategy singletonProviderStrategy) {
+        Set<Field> injectableFields = getInjectableFields(beanType);
+
+        if (typeHasEquallyNamedInjectableFields(injectableFields))
+            throw new IllegalStateException("bean must not have 2 equally named injectable fields");
+
+        Object singleton = singletonProviderStrategy.provideSingleton(beanType);
+
+        setValuesOfInjectables(injectableFields, singleton);
+        String beanName = getBeanNameOfType(beanType);
+        addSingletonToMap(beanName, singleton);
+    }
+
+    private void injectManuallyAddedSingletons() {
+        for (Object singleton : manuallyInstantiatedBeans) {
+            Class<?> beanType = singleton.getClass();
+            injectFieldsIntoBean(beanType, new SingletonProviderUseManuallyInstantiatedBeanStrategy(singleton));
         }
     }
 
@@ -107,10 +157,10 @@ public class Container {
     }
 
     private void checkIfTypeIsAddedAndScanned(Class<?> type) {
-        if (packageNames.isEmpty())
+        if (packageNames.isEmpty() && manuallyInstantiatedBeans.isEmpty())
             throw new IllegalStateException("packages must be added and scanned before getting bean");
 
-        if (!typeIsInScannedPackages(type))
+        if (!typeIsInScannedPackages(type) && manuallyInstantiatedBeans.isEmpty())
             throw new IllegalArgumentException("package of type " + type.getName() + " has not been added and scanned");
     }
 
@@ -120,16 +170,14 @@ public class Container {
             if (!packageOfType.startsWith(packageName))
                 return false;
         }
-        if (classesToExcludeFromScanning.contains(type.getSimpleName()))
-            return false;
-        return true;
+        return !classesToExcludeFromScanning.contains(type.getSimpleName());
     }
 
     private void addSingletonToMap(String beanName, Object newSingleton) {
         beanNameToSingletonMap.put(beanName, newSingleton);
     }
 
-    private void injectInjectablesIntoSingleton(Set<Field> injectableFields, Object newSingleton) {
+    private void setValuesOfInjectables(Set<Field> injectableFields, Object newSingleton) {
         for (Field field : injectableFields) {
             String injectableName = getFieldName(field);
             Object valueToInject = injectableNameToInjectableObjectMap.get(injectableName);
@@ -143,7 +191,9 @@ public class Container {
     }
 
     private static boolean typeHasEquallyNamedInjectableFields(Set<Field> injectableFields) {
-        List<String> fieldNames = injectableFields.stream().map(Container::getFieldName)
+        List<String> fieldNames = injectableFields
+                .stream()
+                .map(Container::getFieldName)
                 .collect(Collectors.toList());
 
         return CollectionUtils.containsDuplicates(fieldNames);
@@ -234,5 +284,13 @@ public class Container {
             return type.getAnnotation(Named.class).name();
         else
             return type.getName();
+    }
+
+    public void addInjectable(Object newSingleton) {
+        Class<?> type = newSingleton.getClass();
+        if (!typeIsBean(type))
+            throw new IllegalArgumentException(type.getName() + " is not annotated with @Bean");
+
+        manuallyInstantiatedBeans.add(newSingleton);
     }
 }
