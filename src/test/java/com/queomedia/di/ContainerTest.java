@@ -5,6 +5,7 @@ import com.queomedia.di.demobeans.Demo;
 import com.queomedia.di.demobeans.DemoImpl2;
 import com.queomedia.di.demoinjection.InjectionTargetNamed;
 import com.queomedia.di.invalidbeans.DemoImpl1;
+import com.queomedia.di.invalidbeans.DemoImpl3;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -12,16 +13,12 @@ import static org.junit.Assert.fail;
 
 public class ContainerTest {
 
-//    private static Container setupBasicContainer() {
-//
-//    }
-
     @Test
     public void testBasicUseCase() {
         Container container = new Container();
 
         container.addPackage("com.queomedia.di.demoinjection");
-        container.excludeClassesFromScanning(DemoImpl1.class);
+        container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl3.class);
 
         Integer beanA = 1;
         Integer beanB = 2;
@@ -41,7 +38,7 @@ public class ContainerTest {
         Container container = new Container();
 
         container.addPackage("com.queomedia.di.demoinjection");
-        container.excludeClassesFromScanning(DemoImpl1.class);
+        container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl3.class);
 
         Integer beanA = 1;
         Integer beanB = 2;
@@ -107,7 +104,7 @@ public class ContainerTest {
         Container container = new Container();
         Integer bean = 0;
         container.addPackage("com.queomedia.di.demoinjection");
-        container.excludeClassesFromScanning(DemoImpl1.class);
+        container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl3.class);
         container.addBean("a", bean);
         container.scan();
 
@@ -124,7 +121,7 @@ public class ContainerTest {
         Container container = new Container();
         Integer bean = 0;
         container.addPackage("com.queomedia.di.demobeans");
-        container.excludeClassesFromScanning(DemoImpl1.class);
+        container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl3.class);
         container.addBean("a", bean);
         container.scan();
 
@@ -157,6 +154,43 @@ public class ContainerTest {
         } catch (IllegalStateException e) {
 
         }
+    }
+
+    @Test
+    public void testThrowWhenGettingExcludedBean() {
+        Container container = new Container();
+        Integer bean = 0;
+        container.addPackage("com.queomedia.di.invalidbeans");
+        container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl2.class);
+        container.addBean("a", bean);
+
+        container.scan();
+
+        try {
+            DemoImpl1 demo = (DemoImpl1) container.getBeanByType(DemoImpl1.class);
+            fail("DemoImpl1 has been excluded from scanning and can not be available");
+        } catch (IllegalArgumentException e) {
+
+        }
+
+    }
+
+    @Test
+    public void testThrowIfBeansHaveSameName() {
+        Container container = new Container();
+        Integer bean = 0;
+        container.addPackage("com.queomedia.di");
+        container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl2.class);
+        container.addBean("a", bean);
+
+        try {
+            container.scan();
+//            DemoImpl3 demo = (DemoImpl3) container.getBeanByType(DemoImpl3.class);
+            fail("DemoImpl3 and DemoImpl4 have the same been name");
+        } catch (IllegalStateException e) {
+
+        }
+
     }
 
 }

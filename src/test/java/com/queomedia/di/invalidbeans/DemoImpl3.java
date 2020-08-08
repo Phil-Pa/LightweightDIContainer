@@ -6,14 +6,11 @@ import com.queomedia.di.annotations.Named;
 import com.queomedia.di.demobeans.Demo;
 
 @Bean
-@Named(name = "demo")
-public class DemoImpl1 {
+@Named(name = "Demo34")
+public class DemoImpl3 {
 
     @Inject
-    @Named(name = "demo2")
-    private Demo demo1;
-
-    @Inject
-    private Demo demo2;
+    @Named(name = "myDemo")
+    protected Demo demo;
 
 }

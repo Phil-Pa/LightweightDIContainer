@@ -52,6 +52,8 @@ public class Container {
 
         Set<Class<?>> beanTypes = findBeanTypes();
 
+        checkForSameBeanNames(beanTypes);
+
         for (Class<?> beanType : beanTypes) {
             if (typeCanNotBeInstantiated(beanType))
                 continue;
@@ -66,6 +68,21 @@ public class Container {
             injectInjectablesIntoSingleton(injectableFields, newSingleton);
             String beanName = getBeanNameOfType(beanType);
             addSingletonToMap(beanName, newSingleton);
+        }
+    }
+
+    private void checkForSameBeanNames(Set<Class<?>> beanTypes) {
+        for (Class<?> type : beanTypes) {
+            String beanName = getBeanNameOfType(type);
+            for (Class<?> compareType : beanTypes) {
+
+                if (type.getName().equals(compareType.getName()))
+                    continue;
+
+                String compareBeanName = getBeanNameOfType(compareType);
+                if (beanName.equals(compareBeanName))
+                    throw new IllegalStateException("scanned packages contain beans with equal names");
+            }
         }
     }
 
@@ -103,6 +120,8 @@ public class Container {
             if (!packageOfType.startsWith(packageName))
                 return false;
         }
+        if (classesToExcludeFromScanning.contains(type.getSimpleName()))
+            return false;
         return true;
     }
 
@@ -211,6 +230,9 @@ public class Container {
     }
 
     private static String getBeanNameOfType(Class<?> type) {
-        return type.getName();
+        if (type.isAnnotationPresent(Named.class))
+            return type.getAnnotation(Named.class).name();
+        else
+            return type.getName();
     }
 }
