@@ -23,12 +23,12 @@ public class ContainerTest {
         Integer beanA = 1;
         Integer beanB = 2;
 
-        container.addBean("a", beanA);
-        container.addBean("b", beanB);
+        container.addInjectable("a", beanA);
+        container.addInjectable("b", beanB);
 
         container.scan();
 
-        InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+        InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByClass(InjectionTargetNamed.class);
         assertEquals(beanA, injectionTargetNamed.getValueA());
         assertEquals(beanB, injectionTargetNamed.getValueB());
     }
@@ -43,13 +43,13 @@ public class ContainerTest {
         Integer beanA = 1;
         Integer beanB = 2;
 
-        container.addBean("a", beanA);
-        container.addBean("b", beanB);
+        container.addInjectable("a", beanA);
+        container.addInjectable("b", beanB);
 
         container.scan();
 
-        InjectionTargetNamed injectionTargetNamedA = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
-        InjectionTargetNamed injectionTargetNamedB = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+        InjectionTargetNamed injectionTargetNamedA = (InjectionTargetNamed) container.getBeanByClass(InjectionTargetNamed.class);
+        InjectionTargetNamed injectionTargetNamedB = (InjectionTargetNamed) container.getBeanByClass(InjectionTargetNamed.class);
 
         assertEquals(injectionTargetNamedA, injectionTargetNamedB);
     }
@@ -58,10 +58,10 @@ public class ContainerTest {
     public void testThrowExceptionWhenAddingSameBeenMultipleTimes() {
         Container container = new Container();
         Integer bean = 0;
-        container.addBean("a", bean);
+        container.addInjectable("a", bean);
 
         try {
-            container.addBean("a", bean);
+            container.addInjectable("a", bean);
             fail("");
         } catch (IllegalArgumentException e) {
 
@@ -72,11 +72,11 @@ public class ContainerTest {
     public void testThrowExceptionWhenCreatingBeanFromUnknownPackage() {
         Container container = new Container();
         Integer bean = 0;
-        container.addBean("a", bean);
+        container.addInjectable("a", bean);
         container.scan();
 
         try {
-            InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+            InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByClass(InjectionTargetNamed.class);
             fail("container should throw exception");
         } catch (IllegalStateException e) {
 
@@ -88,11 +88,11 @@ public class ContainerTest {
         Container container = new Container();
         Integer bean = 0;
         container.addPackage("com.example");
-        container.addBean("a", bean);
+        container.addInjectable("a", bean);
         container.scan();
 
         try {
-            InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+            InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByClass(InjectionTargetNamed.class);
             fail("class InjectionTargetNamed is not in package com.example and the container should not have added this class for scanning");
         } catch (IllegalArgumentException e) {
 
@@ -105,11 +105,11 @@ public class ContainerTest {
         Integer bean = 0;
         container.addPackage("com.queomedia.di.demoinjection");
         container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl3.class);
-        container.addBean("a", bean);
+        container.addInjectable("a", bean);
         container.scan();
 
         try {
-            Container newContainer = (Container) container.getBeanByType(Container.class);
+            Container newContainer = (Container) container.getBeanByClass(Container.class);
             fail(Container.class.getName() + " is not annotated with Bean and can not be created by the container");
         } catch (IllegalArgumentException e) {
 
@@ -122,18 +122,18 @@ public class ContainerTest {
         Integer bean = 0;
         container.addPackage("com.queomedia.di.demobeans");
         container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl3.class);
-        container.addBean("a", bean);
+        container.addInjectable("a", bean);
         container.scan();
 
         try {
-            Demo demo = (Demo) container.getBeanByType(Demo.class);
+            Demo demo = (Demo) container.getBeanByClass(Demo.class);
             fail("demo can not be instantiated and an exception must be thrown");
         } catch (IllegalArgumentException e) {
 
         }
 
         try {
-            AbstractDemo demo = (AbstractDemo) container.getBeanByType(AbstractDemo.class);
+            AbstractDemo demo = (AbstractDemo) container.getBeanByClass(AbstractDemo.class);
             fail("demo can not be instantiated and an exception must be thrown");
         } catch (IllegalArgumentException e) {
 
@@ -145,7 +145,7 @@ public class ContainerTest {
         Container container = new Container();
         Integer bean = 0;
         container.addPackage("com.queomedia.di.invalidbeans");
-        container.addBean("a", bean);
+        container.addInjectable("a", bean);
 
         try {
             container.scan();
@@ -162,12 +162,12 @@ public class ContainerTest {
         Integer bean = 0;
         container.addPackage("com.queomedia.di.invalidbeans");
         container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl2.class);
-        container.addBean("a", bean);
+        container.addInjectable("a", bean);
 
         container.scan();
 
         try {
-            DemoImpl1 demo = (DemoImpl1) container.getBeanByType(DemoImpl1.class);
+            DemoImpl1 demo = (DemoImpl1) container.getBeanByClass(DemoImpl1.class);
             fail("DemoImpl1 has been excluded from scanning and can not be available");
         } catch (IllegalArgumentException e) {
 
@@ -181,7 +181,7 @@ public class ContainerTest {
         Integer bean = 0;
         container.addPackage("com.queomedia.di");
         container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl2.class);
-        container.addBean("a", bean);
+        container.addInjectable("a", bean);
 
         try {
             container.scan();
@@ -203,12 +203,12 @@ public class ContainerTest {
 
         container.addInjectable(injectionTargetNamed);
 
-        container.addBean("a", beanA);
-        container.addBean("b", beanB);
+        container.addInjectable("a", beanA);
+        container.addInjectable("b", beanB);
 
         container.scan();
 
-        InjectionTargetNamed injectionTargetNamedInjected = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+        InjectionTargetNamed injectionTargetNamedInjected = (InjectionTargetNamed) container.getBeanByClass(InjectionTargetNamed.class);
 
         assertEquals(injectionTargetNamed, injectionTargetNamedInjected);
         assertEquals(beanA, injectionTargetNamed.getValueA());
@@ -229,12 +229,12 @@ public class ContainerTest {
         container.excludeClassesFromScanning(DemoImpl1.class, DemoImpl2.class, DemoImpl3.class, DemoImpl4.class);
         container.addInjectable(injectionTargetNamed);
 
-        container.addBean("a", beanA);
-        container.addBean("b", beanB);
+        container.addInjectable("a", beanA);
+        container.addInjectable("b", beanB);
 
         container.scan();
 
-        InjectionTargetNamed injectionTargetNamedInjected = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+        InjectionTargetNamed injectionTargetNamedInjected = (InjectionTargetNamed) container.getBeanByClass(InjectionTargetNamed.class);
 
         assertEquals(injectionTargetNamed, injectionTargetNamedInjected);
         assertEquals(valueC, injectionTargetNamedInjected.getValueC());
@@ -247,12 +247,12 @@ public class ContainerTest {
         Integer beanB = 5;
 
         container.addClass(InjectionTargetNamed.class);
-        container.addBean("a", beanA);
-        container.addBean("b", beanB);
+        container.addInjectable("a", beanA);
+        container.addInjectable("b", beanB);
 
         container.scan();
 
-        InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+        InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByClass(InjectionTargetNamed.class);
         assertEquals(beanA, injectionTargetNamed.getValueA());
         assertEquals(beanB, injectionTargetNamed.getValueB());
     }

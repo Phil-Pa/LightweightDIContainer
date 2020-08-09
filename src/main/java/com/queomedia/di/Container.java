@@ -31,7 +31,7 @@ public class Container {
 
         @Override
         public Object provideSingleton(Class<?> type) {
-            return Container.createSingletonObjectOfType(type);
+            return Container.createSingletonObjectOfClass(type);
         }
     }
 
@@ -62,15 +62,15 @@ public class Container {
         packageNames.add(packageName);
     }
 
-    public void addBean(String beanName, Object bean) {
-        if (injectableNameToInjectableObjectMap.containsKey(beanName))
-            throw new IllegalArgumentException("container already contains bean with name " + beanName);
+    public void addInjectable(String injectableName, Object injectable) {
+        if (injectableNameToInjectableObjectMap.containsKey(injectableName))
+            throw new IllegalArgumentException("container already contains bean with name " + injectableName);
 
-        injectableNameToInjectableObjectMap.put(beanName, bean);
+        injectableNameToInjectableObjectMap.put(injectableName, injectable);
     }
 
-    public void addClass(Class<?> type) {
-        manuallyAddedBeanClasses.add(type);
+    public void addClass(Class<?> clazz) {
+        manuallyAddedBeanClasses.add(clazz);
     }
 
     public void excludeClassesFromScanning(Class<?> ...classesToExclude) {
@@ -83,112 +83,112 @@ public class Container {
     }
 
     public void scan() {
-        Set<Class<?>> beanTypes = findBeanTypes();
-        addManuallyAddedClassesToBeanTypes(beanTypes);
+        Set<Class<?>> beanClasses = findBeanClasses();
+        addManuallyAddedClassesToBeanClasses(beanClasses);
 
-        checkForSameBeanNames(beanTypes);
+        throwIfSameBeanNames(beanClasses);
 
-        for (Class<?> beanType : beanTypes) {
-            if (typeCanNotBeInstantiated(beanType))
+        for (Class<?> clazz : beanClasses) {
+            if (classCanNotBeInstantiated(clazz))
                 continue;
 
-            if (!typeIsManuallyAdded(beanType))
-                injectFieldsIntoBean(beanType, CREATE_NEW_SINGLETON_STRATEGY);
+            if (!beanClassIsManuallyAdded(clazz))
+                injectFieldsIntoBean(clazz, CREATE_NEW_SINGLETON_STRATEGY);
         }
 
         injectManuallyAddedSingletons();
     }
 
-    private void addManuallyAddedClassesToBeanTypes(Set<Class<?>> beanTypes) {
-        beanTypes.addAll(manuallyAddedBeanClasses);
+    private void addManuallyAddedClassesToBeanClasses(Set<Class<?>> beanClasses) {
+        beanClasses.addAll(manuallyAddedBeanClasses);
     }
 
-    private boolean typeIsManuallyAdded(Class<?> type) {
+    private boolean beanClassIsManuallyAdded(Class<?> clazz) {
         for (Object object : manuallyInstantiatedBeans) {
             Class<?> objectType = object.getClass();
-            if (type.getName().equals(objectType.getName()))
+            if (clazz.getName().equals(objectType.getName()))
                 return true;
         }
         return false;
     }
 
-    private void injectFieldsIntoBean(Class<?> beanType, SingletonProviderStrategy singletonProviderStrategy) {
-        Set<Field> injectableFields = getInjectableFields(beanType);
+    private void injectFieldsIntoBean(Class<?> beanClass, SingletonProviderStrategy singletonProviderStrategy) {
+        Set<Field> injectableFields = getInjectableFieldsOfBeanClass(beanClass);
 
-        if (typeHasEquallyNamedInjectableFields(injectableFields))
+        if (beanClassHasEquallyNamedInjectableFields(injectableFields))
             throw new IllegalStateException("bean must not have 2 equally named injectable fields");
 
-        Object singleton = singletonProviderStrategy.provideSingleton(beanType);
+        Object singleton = singletonProviderStrategy.provideSingleton(beanClass);
 
-        setValuesOfInjectables(injectableFields, singleton);
-        String beanName = getBeanNameOfType(beanType);
+        setValuesOfInjectableFields(injectableFields, singleton);
+        String beanName = getBeanNameOfClass(beanClass);
         addSingletonToMap(beanName, singleton);
     }
 
     private void injectManuallyAddedSingletons() {
         for (Object singleton : manuallyInstantiatedBeans) {
-            Class<?> beanType = singleton.getClass();
-            injectFieldsIntoBean(beanType, new SingletonProviderUseManuallyInstantiatedBeanStrategy(singleton));
+            Class<?> beanClass = singleton.getClass();
+            injectFieldsIntoBean(beanClass, new SingletonProviderUseManuallyInstantiatedBeanStrategy(singleton));
         }
     }
 
-    private void checkForSameBeanNames(Set<Class<?>> beanTypes) {
-        for (Class<?> type : beanTypes) {
-            String beanName = getBeanNameOfType(type);
-            for (Class<?> compareType : beanTypes) {
+    private void throwIfSameBeanNames(Set<Class<?>> beanClasses) {
+        for (Class<?> classI : beanClasses) {
+            String beanNameI = getBeanNameOfClass(classI);
+            for (Class<?> classJ : beanClasses) {
 
-                if (type.getName().equals(compareType.getName()))
+                if (classI.getName().equals(classJ.getName()))
                     continue;
 
-                String compareBeanName = getBeanNameOfType(compareType);
-                if (beanName.equals(compareBeanName))
+                String beanNameJ = getBeanNameOfClass(classJ);
+                if (beanNameI.equals(beanNameJ))
                     throw new IllegalStateException("scanned packages contain beans with equal names");
             }
         }
     }
 
-    private Set<Class<?>> findBeanTypes() {
-        Set<Class<?>> beanTypes = new HashSet<>();
+    private Set<Class<?>> findBeanClasses() {
+        Set<Class<?>> beanClasses = new HashSet<>();
 
         for (String packageName : packageNames) {
-            Set<Class<?>> tempBeanTypes = getAllBeanTypesByPackageName(packageName);
-            beanTypes.addAll(tempBeanTypes);
+            Set<Class<?>> tempBeanClasses = getAllBeanClassesByPackageName(packageName);
+            beanClasses.addAll(tempBeanClasses);
         }
-        return beanTypes;
+        return beanClasses;
     }
 
-    public Object getBeanByType(Class<?> type) {
+    public Object getBeanByClass(Class<?> clazz) {
 
-        checkIfTypeCanBeInstantiated(type);
-        checkIfTypeIsBean(type);
-        checkIfTypeIsAddedAndScanned(type);
+        throwIfClassCanNotBeInstantiated(clazz);
+        throwIfClassIsNotBean(clazz);
+        throwIfClassIsNotAddedAndScanned(clazz);
 
-        String beanName = getBeanNameOfType(type);
+        String beanName = getBeanNameOfClass(clazz);
         return beanNameToSingletonMap.get(beanName);
     }
 
-    private void checkIfTypeIsAddedAndScanned(Class<?> type) {
+    private void throwIfClassIsNotAddedAndScanned(Class<?> clazz) {
         if (packageNames.isEmpty() && manuallyInstantiatedBeans.isEmpty() && manuallyAddedBeanClasses.isEmpty())
             throw new IllegalStateException("packages must be added and scanned before getting bean");
 
-        if (!typeIsInScannedPackages(type))
-            throw new IllegalArgumentException("package of type " + type.getName() + " has not been added and scanned");
+        if (!classIsInScannedPackages(clazz))
+            throw new IllegalArgumentException("package of type " + clazz.getName() + " has not been added and scanned");
     }
 
-    private boolean typeIsInScannedPackages(Class<?> type) {
-        String packageOfType = type.getPackageName();
+    private boolean classIsInScannedPackages(Class<?> clazz) {
+        String packageOfClass = clazz.getPackageName();
         for (String packageName : packageNames) {
-            if (!packageOfType.startsWith(packageName))
+            if (!packageOfClass.startsWith(packageName))
                 return false;
         }
-        return !classesToExcludeFromScanning.contains(type.getSimpleName());
+        return !classesToExcludeFromScanning.contains(clazz.getSimpleName());
     }
 
     private void addSingletonToMap(String beanName, Object newSingleton) {
         beanNameToSingletonMap.put(beanName, newSingleton);
     }
 
-    private void setValuesOfInjectables(Set<Field> injectableFields, Object newSingleton) {
+    private void setValuesOfInjectableFields(Set<Field> injectableFields, Object newSingleton) {
         for (Field field : injectableFields) {
             String injectableName = getFieldName(field);
 
@@ -202,7 +202,7 @@ public class Container {
         }
     }
 
-    private static boolean typeHasEquallyNamedInjectableFields(Set<Field> injectableFields) {
+    private static boolean beanClassHasEquallyNamedInjectableFields(Set<Field> injectableFields) {
         List<String> fieldNames = injectableFields
                 .stream()
                 .map(Container::getFieldName)
@@ -211,14 +211,7 @@ public class Container {
         return CollectionUtils.containsDuplicates(fieldNames);
     }
 
-    private static String getFieldName(Field field) {
-        Named named = field.getAnnotation(Named.class);
-        if (named != null)
-            return named.name();
-        return field.getName();
-    }
-
-    private Set<Class<?>> getAllBeanTypesByPackageName(String packageName) {
+    private Set<Class<?>> getAllBeanClassesByPackageName(String packageName) {
         try {
             Reflections reflections = configureClasspathScanner(packageName);
             return reflections.getTypesAnnotatedWith(Bean.class);
@@ -253,28 +246,28 @@ public class Container {
         return false;
     }
 
-    private static void checkIfTypeCanBeInstantiated(Class<?> type) {
-        if (typeCanNotBeInstantiated(type))
-            throw new IllegalArgumentException("type " + type.getName() + " can not be instantiated");
+    private static void throwIfClassCanNotBeInstantiated(Class<?> clazz) {
+        if (classCanNotBeInstantiated(clazz))
+            throw new IllegalArgumentException("type " + clazz.getName() + " can not be instantiated");
     }
 
-    private static boolean typeCanNotBeInstantiated(Class<?> type) {
-        if (type.isInterface() || Modifier.isAbstract(type.getModifiers()))
+    private static boolean classCanNotBeInstantiated(Class<?> clazz) {
+        if (clazz.isInterface() || Modifier.isAbstract(clazz.getModifiers()))
             return true;
         return false;
     }
 
-    private static void checkIfTypeIsBean(Class<?> type) {
-        if (!typeIsBean(type))
-            throw new IllegalArgumentException("type " + type.getName() + " is not annotated with Bean");
+    private static void throwIfClassIsNotBean(Class<?> clazz) {
+        if (!classIsBean(clazz))
+            throw new IllegalArgumentException("type " + clazz.getName() + " is not annotated with Bean");
     }
 
-    private static Set<Field> getInjectableFields(Class<?> type) {
-        return ReflectionUtils.getAllFields(type, withAnnotation(Inject.class));
+    private static Set<Field> getInjectableFieldsOfBeanClass(Class<?> clazz) {
+        return ReflectionUtils.getAllFields(clazz, withAnnotation(Inject.class));
     }
 
-    private static Object createSingletonObjectOfType(Class<?> type) {
-        Constructor<?> constructor = getDefaultConstructorOfType(type);
+    private static Object createSingletonObjectOfClass(Class<?> clazz) {
+        Constructor<?> constructor = getDefaultConstructorOfClass(clazz);
         try {
             constructor.setAccessible(true);
             return constructor.newInstance();
@@ -283,25 +276,32 @@ public class Container {
         }
     }
 
-    private static boolean typeIsBean(Class<?> type) {
-        return type.isAnnotationPresent(Bean.class);
+    private static boolean classIsBean(Class<?> clazz) {
+        return clazz.isAnnotationPresent(Bean.class);
     }
 
-    private static Constructor<?> getDefaultConstructorOfType(Class<?> type) {
-        return ReflectionUtils.getConstructors(type, withParametersCount(0)).stream().findFirst().orElseThrow();
+    private static Constructor<?> getDefaultConstructorOfClass(Class<?> clazz) {
+        return ReflectionUtils.getConstructors(clazz, withParametersCount(0)).stream().findFirst().orElseThrow();
     }
 
-    private static String getBeanNameOfType(Class<?> type) {
-        if (type.isAnnotationPresent(Named.class))
-            return type.getAnnotation(Named.class).name();
+    private static String getBeanNameOfClass(Class<?> clazz) {
+        if (clazz.isAnnotationPresent(Named.class))
+            return clazz.getAnnotation(Named.class).name();
         else
-            return type.getName();
+            return clazz.getName();
+    }
+
+    private static String getFieldName(Field field) {
+        Named named = field.getAnnotation(Named.class);
+        if (named != null)
+            return named.name();
+        return field.getName();
     }
 
     public void addInjectable(Object newSingleton) {
-        Class<?> type = newSingleton.getClass();
-        if (!typeIsBean(type))
-            throw new IllegalArgumentException(type.getName() + " is not annotated with @Bean");
+        Class<?> clazz = newSingleton.getClass();
+        if (!classIsBean(clazz))
+            throw new IllegalArgumentException(clazz.getName() + " is not annotated with @Bean");
 
         manuallyInstantiatedBeans.add(newSingleton);
     }
