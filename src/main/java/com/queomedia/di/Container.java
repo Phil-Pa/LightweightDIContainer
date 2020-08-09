@@ -82,6 +82,14 @@ public class Container {
         classesToExcludeFromScanning.addAll(classNames);
     }
 
+    public void addInjectable(Object instantiatedBean) {
+        Class<?> clazz = instantiatedBean.getClass();
+        if (!classIsBean(clazz))
+            throw new IllegalArgumentException(clazz.getName() + " is not annotated with @Bean");
+
+        manuallyInstantiatedBeans.add(instantiatedBean);
+    }
+
     public void scan() {
         Set<Class<?>> beanClasses = findBeanClasses();
         addManuallyAddedClassesToBeanClasses(beanClasses);
@@ -157,7 +165,7 @@ public class Container {
         return beanClasses;
     }
 
-    public Object getBeanByClass(Class<?> clazz) {
+    public Object getBeanOfClass(Class<?> clazz) {
 
         throwIfClassCanNotBeInstantiated(clazz);
         throwIfClassIsNotBean(clazz);
@@ -234,7 +242,6 @@ public class Container {
 
     private boolean filterClassesToExclude(String classpath) {
         boolean classShouldBeScanned = !classpathContainsAnyClassToExclude(classpath, classesToExcludeFromScanning);
-        System.out.println("scanning " + classpath + " = " + classShouldBeScanned);
         return classShouldBeScanned;
     }
 
@@ -296,13 +303,5 @@ public class Container {
         if (named != null)
             return named.name();
         return field.getName();
-    }
-
-    public void addInjectable(Object newSingleton) {
-        Class<?> clazz = newSingleton.getClass();
-        if (!classIsBean(clazz))
-            throw new IllegalArgumentException(clazz.getName() + " is not annotated with @Bean");
-
-        manuallyInstantiatedBeans.add(newSingleton);
     }
 }
