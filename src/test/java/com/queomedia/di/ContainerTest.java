@@ -9,8 +9,7 @@ import com.queomedia.di.invalidbeans.DemoImpl3;
 import com.queomedia.di.invalidbeans.DemoImpl4;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class ContainerTest {
 
@@ -239,6 +238,23 @@ public class ContainerTest {
 
         assertEquals(injectionTargetNamed, injectionTargetNamedInjected);
         assertEquals(valueC, injectionTargetNamedInjected.getValueC());
+    }
+
+    @Test
+    public void testAddClass() {
+        Container container = new Container();
+        Integer beanA = 3;
+        Integer beanB = 5;
+
+        container.addClass(InjectionTargetNamed.class);
+        container.addBean("a", beanA);
+        container.addBean("b", beanB);
+
+        container.scan();
+
+        InjectionTargetNamed injectionTargetNamed = (InjectionTargetNamed) container.getBeanByType(InjectionTargetNamed.class);
+        assertEquals(beanA, injectionTargetNamed.getValueA());
+        assertEquals(beanB, injectionTargetNamed.getValueB());
     }
 
 }

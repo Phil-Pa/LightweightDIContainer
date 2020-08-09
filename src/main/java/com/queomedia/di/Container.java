@@ -27,7 +27,7 @@ public class Container {
         Object provideSingleton(Class<?> type);
     }
 
-    private static class SingletonProviderCreateNewSingletonStrategy implements SingletonProviderStrategy {
+    private static final class SingletonProviderCreateNewSingletonStrategy implements SingletonProviderStrategy {
 
         @Override
         public Object provideSingleton(Class<?> type) {
@@ -35,7 +35,7 @@ public class Container {
         }
     }
 
-    private static class SingletonProviderUseManuallyInstantiatedBeanStrategy implements SingletonProviderStrategy {
+    private static final class SingletonProviderUseManuallyInstantiatedBeanStrategy implements SingletonProviderStrategy {
 
         private final Object manuallyInstantiatedBean;
 
@@ -56,9 +56,21 @@ public class Container {
     private final Map<String, Object> beanNameToSingletonMap = new HashMap<>();
     private final Set<String> classesToExcludeFromScanning = new HashSet<>();
     private final Set<Object> manuallyInstantiatedBeans = new HashSet<>();
+    private final Set<Class<?>> manuallyAddedBeanClasses = new HashSet<>();
 
     public void addPackage(String packageName) {
         packageNames.add(packageName);
+    }
+
+    public void addBean(String beanName, Object bean) {
+        if (injectableNameToInjectableObjectMap.containsKey(beanName))
+            throw new IllegalArgumentException("container already contains bean with name " + beanName);
+
+        injectableNameToInjectableObjectMap.put(beanName, bean);
+    }
+
+    public void addClass(Class<?> type) {
+        manuallyAddedBeanClasses.add(type);
     }
 
     public void excludeClassesFromScanning(Class<?> ...classesToExclude) {
@@ -70,15 +82,10 @@ public class Container {
         classesToExcludeFromScanning.addAll(classNames);
     }
 
-    public void addBean(String beanName, Object bean) {
-        if (injectableNameToInjectableObjectMap.containsKey(beanName))
-            throw new IllegalArgumentException("container already contains bean with name " + beanName);
-
-        injectableNameToInjectableObjectMap.put(beanName, bean);
-    }
-
     public void scan() {
         Set<Class<?>> beanTypes = findBeanTypes();
+        addManuallyAddedClassesToBeanTypes(beanTypes);
+
         checkForSameBeanNames(beanTypes);
 
         for (Class<?> beanType : beanTypes) {
@@ -90,6 +97,10 @@ public class Container {
         }
 
         injectManuallyAddedSingletons();
+    }
+
+    private void addManuallyAddedClassesToBeanTypes(Set<Class<?>> beanTypes) {
+        beanTypes.addAll(manuallyAddedBeanClasses);
     }
 
     private boolean typeIsManuallyAdded(Class<?> type) {
@@ -157,10 +168,10 @@ public class Container {
     }
 
     private void checkIfTypeIsAddedAndScanned(Class<?> type) {
-        if (packageNames.isEmpty() && manuallyInstantiatedBeans.isEmpty())
+        if (packageNames.isEmpty() && manuallyInstantiatedBeans.isEmpty() && manuallyAddedBeanClasses.isEmpty())
             throw new IllegalStateException("packages must be added and scanned before getting bean");
 
-        if (!typeIsInScannedPackages(type) && manuallyInstantiatedBeans.isEmpty())
+        if (!typeIsInScannedPackages(type))
             throw new IllegalArgumentException("package of type " + type.getName() + " has not been added and scanned");
     }
 
@@ -180,6 +191,7 @@ public class Container {
     private void setValuesOfInjectables(Set<Field> injectableFields, Object newSingleton) {
         for (Field field : injectableFields) {
             String injectableName = getFieldName(field);
+
             Object valueToInject = injectableNameToInjectableObjectMap.get(injectableName);
             try {
                 field.setAccessible(true);
