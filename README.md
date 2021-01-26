@@ -8,7 +8,7 @@ Container container = new Container();
 container.addPackage("<my package name>");
 
 container.addBean("a", beanA);
-container.addBean("a", beanB);
+container.addBean("b", beanB);
 container.start();
 
 InjectionTargetNamed injectionTargetNamed = container.getBeanByType(InjectionTargetNamed.class);
